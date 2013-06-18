@@ -5,6 +5,7 @@ import urllib2
 import socket
 import httplib
 import re
+import argparse
 
 import socks		# http://socksipy.sourceforge.net
 
@@ -14,7 +15,7 @@ from stem.util import term
 
 def query(url):
 	# urllib2 needs URLs to include http://, so if the user submits "example.com" this will prepend http://
-	if not re.search("^http\:\/\/", url):
+	if not re.search("^http[s]?\:\/\/", url):
 		url = "http://" + url
 	try:
 		opener = urllib2.build_opener(SocksiPyHandler(socks.PROXY_TYPE_SOCKS5, "localhost", 9050))
@@ -55,7 +56,8 @@ def print_bootstrap_lines(line):
 	if "Bootstrapped" in line:
 		print term.format(line, term.Color.BLUE)
 
-def main(url):
+def main():
+	print args.url
 	socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, '127.0.0.1', 9050)
 	socket.socket = socks.socksocket
 
@@ -75,18 +77,26 @@ def main(url):
 	#tor_process = stem.process.launch_tor()
 
 	print term.format("\nChecking endpoints:\n", term.Attr.BOLD)
-	print term.format(query(url).read(), term.Color.BLUE)
+	print term.format(query(args.url).read(), term.Color.BLUE)
 
 	tor_process.kill()
 	print term.format("\nTor Instance Killed.", term.Attr.BOLD)
 	
 
 if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		main(sys.argv[1])
-	else:
-		print "Please supply a URL to gather\n"
-		print "python tor-scraper.py url\n"
+	parser = argparse.ArgumentParser(description="Tor-Scraper.py - Scrape sites using TOR and search for a keyword")
+	parser.add_argument('-u', '--url', help="URL to scrape. Example: http://www.google.com", required=True)
+	parser.add_argument('-k', '--keyword', help="Keyword to be searched on page")
+
+	args = parser.parse_args()
+	main()
+	
+
+
+
+
+
+
 
 
 
