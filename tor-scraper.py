@@ -15,6 +15,9 @@ import stem.process
 from stem.util import term
 
 # Enable or disable debug messages
+# Codes:
+# [I] - Informational Messages
+# [E] - Error Messages
 DEBUG = True
 
 def query(url):
@@ -37,8 +40,6 @@ class SocksiPyConnection(httplib.HTTPConnection):
             self.sock.settimeout(self.timeout)
         self.sock.connect((self.host, self.port))
 
-
-
 class SocksiPyHandler(urllib2.HTTPHandler):
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -50,8 +51,6 @@ class SocksiPyHandler(urllib2.HTTPHandler):
             conn = SocksiPyConnection(*self.args, host=host, port=port, strict=strict, timeout=timeout, **self.kw)
             return conn
         return self.do_open(build, req)
-
-
 
 def print_bootstrap_lines(line):
 	if "Bootstrapped" in line:
@@ -70,19 +69,36 @@ def main():
 
 	print term.format("Starting Tor:\n", term.Attr.BOLD)
 
-	tor_process = stem.process.launch_tor_with_config(
-		config = {
-			'SocksPort':str(9050),
-			'ControlPort':str(9051),
-			},
-		init_msg_handler = print_bootstrap_lines,
-		completion_percent = 100,
-		timeout = 3600
-	)
+	try:
+		tor_process = stem.process.launch_tor_with_config(
+			config = {
+				'SocksPort':str(9050),
+				'ControlPort':str(9051),
+				},
+			init_msg_handler = print_bootstrap_lines,
+			completion_percent = 100,
+			timeout = 3600
+		)
+
+	# TODO: implement the ability to bind to existing Tor instance in the future
+	# use stem.connection lib
+	except OSError as e:
+		print "[E] There was an error launching Tor"
+		if DEBUG:
+			print "Error details:"
+			print e
+		# TODO: Remove this, make script try to connect to running instance
+		sys.exit("Please kill all running Tor instances and try again")
+			
 
 	domains = []
 	url = check_http(args.url)
 	domains.append(url)
+
+	# Prints endpoint information if debugging is enabled
+	if DEBUG:
+		print term.format("[I] Checking Endpoint:", term.Attr.BOLD)
+		print query("http://www.atagar.com/echo.php").read()
 
 	#tor_process = stem.process.launch_tor()
 
