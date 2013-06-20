@@ -6,6 +6,7 @@ import socket
 import httplib
 import re
 import argparse
+#import sqlite3
 
 import socks		# http://socksipy.sourceforge.net
 
@@ -13,10 +14,10 @@ import stem		# http://stem.torproject.org
 import stem.process
 from stem.util import term
 
+# Enable or disable debug messages
+DEBUG = True
+
 def query(url):
-	# urllib2 needs URLs to include http://, so if the user submits "example.com" this will prepend http://
-	if not re.search("^http[s]?\:\/\/", url):
-		url = "http://" + url
 	try:
 		opener = urllib2.build_opener(SocksiPyHandler(socks.PROXY_TYPE_SOCKS5, "localhost", 9050))
 		h = opener.open(url)
@@ -56,11 +57,16 @@ def print_bootstrap_lines(line):
 	if "Bootstrapped" in line:
 		print term.format(line, term.Color.BLUE)
 
+def check_http(url):
+	# urllib2 needs URLs to include http://, so if the user submits "example.com" this will prepend http://
+	if not re.search("^http[s]?\:\/\/", url):
+		url = "http://" + url
+
+	return url
+
 def main():
-	print args.url
 	socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, '127.0.0.1', 9050)
 	socket.socket = socks.socksocket
-
 
 	print term.format("Starting Tor:\n", term.Attr.BOLD)
 
@@ -74,10 +80,31 @@ def main():
 		timeout = 3600
 	)
 
+	domains = []
+	url = check_http(args.url)
+	domains.append(url)
+
 	#tor_process = stem.process.launch_tor()
 
-	print term.format("\nChecking endpoints:\n", term.Attr.BOLD)
-	print term.format(query(args.url).read(), term.Color.BLUE)
+	print term.format("\nScraping for .ONION domains:\n", term.Attr.BOLD)
+#	print term.format(query(url).read(), term.Color.BLUE)
+#	db = sqlite3.connect('contents.db')
+
+	for site in domains:
+		if DEBUG:
+			print term.format("Scraping %s\n" % site, term.Attr.BOLD)
+
+		lines = query(site).readlines()
+
+		for x in lines:
+			m = re.search('\w+\.onion', x)
+			if m and (m not in domains):
+				domains.append(check_http(m.group(0)))
+		if DEBUG:
+			for x in domains:
+				print x
+
+	
 
 	tor_process.kill()
 	print term.format("\nTor Instance Killed.", term.Attr.BOLD)
