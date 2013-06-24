@@ -83,7 +83,7 @@ def get_title(lines):
 		m = re.search("\<title\>.*\<\/title\>", x)
 		if m:		
 			title = m.group(0) 
-	return title[7:-8]
+	return unicode(title[7:-8], 'UTF-8', errors='replace')
 
 
 def main():
@@ -139,18 +139,12 @@ def main():
 
 	# Main scraping loop
 	# Gathers domains into the database, and continues to scrape through each subsequent domain
-	prev_site = 'N/A - Starting Domain'
-	current_time = datetime.datetime.now()
-	urldoc = DB_Structure(_id = check_http(url), url = check_http(url), ref = 'None', Discovered=current_time, LastAccessed=current_time, title='')
-	urldoc.store(db)
- 		
-#	try:	
-#		db.save(urldoc)
-#	except couchdb.http.ResourceConflict as e:
-#		if DEBUG:
-#			print "[I] Databse Record for %s already exists! Updating..." % url
-#		# Update existing entry
-#		db[site]['LastAccessed'] = '%s' % datetime.datetime.now()
+	if url not in db:	
+		prev_site = 'N/A - Starting Domain'
+		current_time = datetime.datetime.now()
+		urldoc = DB_Structure(_id = check_http(url), url = check_http(url), ref = 'None', 
+			Discovered=current_time, LastAccessed=current_time, title='')
+		urldoc.store(db)
 
 	for site in domains:
 		if DEBUG:
@@ -164,10 +158,6 @@ def main():
 			if DEBUG:
 				print "Error message: %s" % e
 			lines = []
-
-		current_time = str(datetime.datetime.now())
-		#urldoc = {'_id': site, 'URL': site, 'ref': prev_site, 'discovered': current_time, 
-		#		'LastAccessed' : current_time, "Title": get_title(lines)}
 
 		#Update the current site's entry
 		doc = DB_Structure.load(db, check_http(site))
@@ -184,13 +174,6 @@ def main():
 					current_time = datetime.datetime.now()
 					new_site = DB_Structure(_id = full_url, url = full_url, ref = site, Discovered=current_time, LastAccessed=current_time, title='')
 					new_site.store(db)
-
-		#prev_site = site
-
-		#if DEBUG:
-		#	for x in domains:
-		#		print x
-
 	
 	print term.format("\nScraping Complete.", term.Attr.BOLD)
 	tor_process.kill()
