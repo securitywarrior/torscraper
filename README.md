@@ -2,7 +2,7 @@ TOR-SCRAPER.PY
 
 Instructions:
 
-This script is in it's very early stages of development. As such, there are certain system dependences that must be set up before beginning.
+This script is in its early stages of development. As such, there are certain system dependences that must be set up before beginning.
 
 1) CouchDB must be running on http://localhost:5984 (Learn more about CouchDB at http://couchdb.apache.org)
 2) CouchDB python library must be installed (https://code.google.com/p/couchdb-python/)
