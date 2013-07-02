@@ -97,17 +97,18 @@ def start_tor():
 				},
 			init_msg_handler = print_bootstrap_lines,
 			completion_percent = 100,
-			timeout = 3600
+			timeout = 3600,
+			take_ownership = True
 		)
 
 	# TODO: implement the ability to bind to existing Tor instance in the future
 	# use stem.connection lib
 	except OSError as e:
-		print("[E] There was an error launching Tor")
+		print("[E] There was an error launching Tor. It may already be running.")
 		if DEBUG:
 			print("Error message: {0}".format(e))
 		# TODO: Remove this, make script try to connect to running instance
-		sys.exit("Please kill all running Tor instances and try again")
+		#sys.exit("Please kill all running Tor instances and try again")
 
 def scrape_site(site, domains, db):
 	if DEBUG:
