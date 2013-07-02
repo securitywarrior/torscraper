@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+#
+# NOTE: This version requires Python 3.x to run
 
 import sys, os
 import urllib
@@ -8,6 +10,7 @@ import re
 import argparse
 import datetime
 import queue
+import concurrent.futures
 
 import socks		# Now using branch version for compatibility with Python 3.x
 			# https://code.google.com/p/socksipy-branch/
@@ -19,7 +22,7 @@ from stem.util import term
 
 import couchdb		# Running branch patched for Python 3
 			# https://github.com/lilydjwg/couchdb-python3
-from couchdb.mapping import Document, TextField, IntegerField, DateTimeField
+from couchdb.mapping import Document, TextField, IntegerField, DateTimeField, BooleanField
 
 # Enable or disable debug messages
 # Codes:
@@ -66,6 +69,7 @@ class DB_Structure(Document):
 	Discovered = DateTimeField()
 	LastAccessed = DateTimeField()
 	title = TextField()
+	is_alive = BooleanField()
 
 
 def print_bootstrap_lines(line):
@@ -111,6 +115,13 @@ def start_tor():
 		#sys.exit("Please kill all running Tor instances and try again")
 
 def scrape_site(site, domains, db):
+	doc = DB_Structure.load(db, check_http(site))
+	if doc.LastAccessed is not None and (datetime.datetime.now() - doc.LastAccessed).total_seconds() < 300:
+		if DEBUG:
+			print('Site scraped within the last 5 minutes! Skipping...')		
+		return
+
+	alive = True
 	if DEBUG:
 		print(term.format("Scraping %s\n" % site, term.Attr.BOLD))
 
@@ -122,13 +133,15 @@ def scrape_site(site, domains, db):
 		if DEBUG:
 			print("Error message: {0}".format(e))
 		lines = []
+		alive = False
 
 	lines = [x.decode('utf8', errors='replace') for x in lines]
 
 	#Update the current site's entry
-	doc = DB_Structure.load(db, check_http(site))
+
 	doc.LastAccessed = datetime.datetime.now()
 	doc.title = get_title(lines)
+	doc.is_alive = alive
 	doc.store(db)
 
 	for x in lines:
@@ -138,7 +151,7 @@ def scrape_site(site, domains, db):
 			domains.put(full_url)
 			if full_url not in db:
 				current_time = datetime.datetime.now()
-				new_site = DB_Structure(_id = full_url, url = full_url, ref = site, Discovered=current_time, LastAccessed=current_time, title='')
+				new_site = DB_Structure(_id = full_url, url = full_url, ref = site, Discovered=current_time, LastAccessed=None, title='', is_alive=False)
 				new_site.store(db)
 
 def main():
@@ -161,7 +174,14 @@ def main():
 
 	# start the Tor process
 	start_tor()
-	control = stem.control.Controller.from_port(address='127.0.0.1', port=9051)
+	try:
+		control = stem.control.Controller.from_port(address='127.0.0.1', port=9051)
+	except stem.SocketError as e:
+		print("[E] Could not connect to control port!")
+		if DEBUG:
+			print("Error message: {0}".format(e))
+		sys.exit("Please kill all running Tor instances and try again")
+
 	control.authenticate()
 	control.new_circuit(path=None, purpose='general', await_build=False)
 	print(control.get_info('circuit-status'))
@@ -183,15 +203,42 @@ def main():
 		prev_site = 'N/A - Starting Domain'
 		current_time = datetime.datetime.now()
 		urldoc = DB_Structure(_id = check_http(url), url = check_http(url), ref = 'None', 
-			Discovered=current_time, LastAccessed=current_time, title='')
+			Discovered=current_time, LastAccessed=None, title='')
 		urldoc.store(db)
 
 	# Main scraping loop
 	# Gathers domains into the database, and continues to scrape through each subsequent domain
-	while domains.qsize() > 0:
-		site = domains.get()
-		scrape_site(site, domains, db)
-	
+
+	with concurrent.futures.ThreadPoolExecutor(max_workers=5) as e:
+		while domains.qsize() > 0:
+#			if domains.qsize() > 4:
+#				for x in range(0, 5):
+#					if DEBUG:
+#						print("Thread {0} started!".format(x))
+#					e.submit(scrape_site, domains.get(), domains, db)
+#			else:
+#				length = domains.qsize()
+#				for x in range(0,length):
+#					if DEBUG:
+#						print("Thread {0} started!".format(x))
+#					e.submit(scrape_site, domains.get(), domains, db)
+			scrape_array = []
+			if domains.qsize() > 4:
+				for x in range(0,5):
+					scrape_array.append(domains.get())
+			else:
+				for x in range(0,domains.qsize()):
+					scrape_array.append(domains.get())	
+
+			scraper = [e.submit(scrape_site, x, domains, db) for x in scrape_array]
+			
+			# Hackish way to make the threads wait until the queue is populated again, or until all threads are done
+			if domains.qsize() == 0:
+				x = [s.result for s in concurrent.futures.as_completed(scraper)]
+				
+		
+
+
 	print(term.format("\nScraping Complete.", term.Attr.BOLD))
 	tor_process.kill()
 	print(term.format("\nTor Instance Killed.", term.Attr.BOLD))
