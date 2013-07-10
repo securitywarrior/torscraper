@@ -1,5 +1,7 @@
 TOR-SCRAPER.PY
 
+===REQUIRES PYTHON 3.X TO RUN===
+
 Instructions:
 
 This script is in its early stages of development. As such, there are certain system dependences that must be set up before beginning.
