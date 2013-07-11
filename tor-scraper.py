@@ -30,6 +30,7 @@ class DB_Structure(Document):
 	LastAccessed = DateTimeField()
 	title = TextField()
 	is_alive = BooleanField()
+	raw_code = TextField()
 
 def check_http(url):
 	# urllib needs URLs to include http://, so if the user submits "example.com" this will prepend http://
@@ -74,6 +75,8 @@ def scrape_site(site, domains, db, handler):
 	doc.LastAccessed = datetime.datetime.now()
 	doc.title = get_title(lines)
 	doc.is_alive = alive
+	#doc.raw_code = ["{0}".format(x) for x in lines]
+	doc.raw_code = lines	
 	doc.store(db)
 
 	for x in lines:
@@ -153,7 +156,7 @@ def main():
 	print("\nScraping Complete.")
 
 	if not handler.kill_tor():
-		print("[E] Error killing the Tor process! It may already be dead.")
+		print("[E] Error killing the Tor process! It may still be running.")
 	else:
 		print("\nTor Instance Killed.")
 
